@@ -1,6 +1,6 @@
 variables:
 - group: terraform_ibm_cloud
-- group: terrafrom_ibm_cloud_production_storage
+- group: terraform_ibm_cloud_production_storage
 
 parameters:
   - name: terraformVersion
