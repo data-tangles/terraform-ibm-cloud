@@ -51,7 +51,7 @@ stages:
           displayName: 'Terraform Init'
           inputs:
             script: |
-              terraform init -backend-config="/terraform/variables/terraform-oracle/object_storage/backend_oracle_object_storage.tf"
+              terraform init -backend-config="backend.tf"
             workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
 
         - task: CmdLine@2
