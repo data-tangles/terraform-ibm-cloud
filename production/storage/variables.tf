@@ -19,11 +19,11 @@ variable "cos_bucket_region_location" {
 }
 
 variable "cos_bucket_allowed_ip" {
-  type = list()
+  type = list(string)
   description = "The array of allowed IP addresses"
 }
 
 variable "tags" {
-  type = list()
+  type = list(string)
   description = "The tags for the resources"
 }
