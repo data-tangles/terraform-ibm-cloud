@@ -1,0 +1,116 @@
+variables:
+- group: terraform_ibm_cloud
+- group: terrafrom_ibm_cloud_production_storage
+
+parameters:
+  - name: terraformVersion
+    type: string
+    default: 'latest'
+  - name: agentPool
+    displayName: 'Agent Pool Selection'
+    type: string
+    default: Self-Hosted
+    values:
+    - Self-Hosted
+    - Oracle-Cloud
+
+trigger:
+- none
+
+stages:
+
+- stage: 'ProdEnvironmentStorage'
+  dependsOn: []
+  displayName: Prod Environment Storage
+
+  jobs:
+    - job: 'TerraformInitPlan_Storage'
+      displayName: 'Initialize and Plan Terraform for Prod Environment Storage'
+      pool: ${{ parameters.agentPool }}
+
+      steps:
+        - checkout: self
+
+        - task: TerraformInstaller@1
+          displayName: 'Terraform Install'
+          inputs:
+            terraformVersion: ${{ parameters.terraformVersion }}
+
+        - task: replacetokens@5
+          displayName: 'Replace Tokens'
+          inputs:
+            rootDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
+            targetFiles: '**/*.*'
+            encoding: 'auto'
+            tokenPattern: 'default'
+            writeBOM: true
+            actionOnMissing: 'warn'
+            enableTelemetry: false
+
+        - task: CmdLine@2
+          displayName: 'Terraform Init'
+          inputs:
+            script: |
+              terraform init -backend-config="/terraform/variables/terraform-oracle/object_storage/backend_oracle_object_storage.tf"
+            workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
+
+        - task: CmdLine@2
+          displayName: 'Terraform Plan'
+          inputs:
+            script: |
+              terraform plan -out ${BUILD_BUILDNUMBER}.tfplan
+            workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
+
+        - task: ArchiveFiles@2
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+          displayName: 'Create Plan Artifact'
+          inputs:
+            rootFolderOrFile: '$(System.DefaultWorkingDirectory)/production/storage/'
+            includeRootFolder: false
+            archiveType: 'tar'
+            tarCompression: 'gz'
+            archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildNumber).tgz'
+            replaceExistingArchive: true
+
+        - task: PublishPipelineArtifact@1
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+          displayName: 'Publish Plan Artifact'
+          inputs:
+            targetPath: '$(Build.ArtifactStagingDirectory)'
+            artifactName: 'prod-storage-plan'
+
+- stage: 'ProdEnvironmentStorageApply'
+  dependsOn: 'ProdEnvironmentStorage'
+  displayName: Prod Environment Storage Apply
+
+  jobs:
+    - deployment: 'TerraformApply_Storage'
+      displayName: 'Apply Terraform for Prod Environment Storage'
+      pool: ${{ parameters.agentPool }}
+      environment: 'IBM-Cloud-Prod'
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - checkout: self
+
+              - task: TerraformInstaller@1
+                displayName: 'Terraform Install'
+                inputs:
+                  terraformVersion: ${{ parameters.terraformVersion }}
+
+              - task: ExtractFiles@1
+                displayName: 'Extract Plan Artifact'
+                inputs:
+                  archiveFilePatterns: '$(Pipeline.Workspace)/prod-storage-plan/$(Build.BuildNumber).tgz'
+                  destinationFolder: '$(System.DefaultWorkingDirectory)/production/storage/'
+                  cleanDestinationFolder: true
+
+              - task: TerraformCLI@1
+                displayName: 'Terraform Apply'
+                inputs:
+                  command: 'apply'
+                  workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
+                  commandOptions: '${BUILD_BUILDNUMBER}.tfplan'
+                  environmentServiceName: '$(backendServiceArm)'
+                  allowTelemetryCollection: false
