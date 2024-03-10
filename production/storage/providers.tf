@@ -5,7 +5,17 @@ terraform {
       version = "1.63.0"
     }
   }
-  backend "remote" {}
+  
+  cloud {
+    organization = "#{organization}#"
+    hostname = "app.terraform.io"
+
+    workspaces {
+      name = "#{workspace}#"
+    }
+
+    token = "#{token}#"
+  }
 }
 
 provider "ibm" {

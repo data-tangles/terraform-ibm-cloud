@@ -51,7 +51,7 @@ stages:
           displayName: 'Terraform Init'
           inputs:
             script: |
-              terraform init -backend-config="backend.tf"
+              terraform init
             workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
 
         - task: CmdLine@2
