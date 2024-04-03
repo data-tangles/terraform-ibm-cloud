@@ -49,6 +49,7 @@ stages:
 
         - task: CmdLine@2
           displayName: 'Terraform Init'
+          name: terraformInit
           inputs:
             script: |
               terraform init
@@ -56,9 +57,16 @@ stages:
 
         - task: CmdLine@2
           displayName: 'Terraform Plan'
+          name: terraformPlan
           inputs:
             script: |
-              terraform plan -out ${BUILD_BUILDNUMBER}.tfplan
+                terraform plan -input=false -no-color -out ${BUILD_BUILDNUMBER}.tfplan -detailed-exitcode
+
+                if [ $? -eq 2 ]; then
+                  echo "##vso[task.setvariable variable=planChanged;isOutput=true]true"
+                else
+                  echo "##vso[task.setvariable variable=planChanged;isOutput=true]false"
+                fi
             workingDirectory: '$(System.DefaultWorkingDirectory)/production/storage/'
 
         - task: ArchiveFiles@2
@@ -81,6 +89,7 @@ stages:
 
 - stage: 'ProdEnvironmentStorageApply'
   dependsOn: 'ProdEnvironmentStorage'
+  condition: and(succeeded(), eq(dependencies.ProdEnvironmentStorage.outputs['terraforminitplan.terraformPlan.planChanged'], 'true'))
   displayName: Prod Environment Storage Apply
 
   jobs:
